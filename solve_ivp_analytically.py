@@ -31,14 +31,6 @@ def ivp_solution(t, x1_init, x2_init, u1, u2, u3, A):
         u2*(A*x1_init + t*u1 - t*u3) + (A**(u3/(u1 - u3))*x1_init**(u3/(u1 - u3))*x2_init - u2*np.exp(u1*np.log(A*x1_init)/(u1 - u3)))*np.exp(-u3*np.log(A*x1_init + t*u1 - t*u3)/(u1 - u3))
     ]
 
-def ivp_solution2(t, x1_init, x2_init, u1, u2, u3, A):
-    u1mu3 = u1 - u3
-    Ax1initptu1mu3 = A * x1_init + t * u1mu3
-    return [
-        Ax1initptu1mu3 / A,
-        u2 * Ax1initptu1mu3 + (A ** (u3 / u1mu3) * x1_init ** (u3 / u1mu3) * x2_init - u2 * np.exp(u1 * np.log(A * x1_init) / u1mu3)) * np.exp(-u3 * np.log(Ax1initptu1mu3) / u1mu3)
-    ]
-
 # Solve for the case when u1 == u3
 ode_system2 = [
     Eq(x1(t).diff(t), 0), 
@@ -48,3 +40,23 @@ ode_system2 = [
 ics = {x1(0): x1_init, x2(0): x2_init}
 
 sol2 = dsolve(ode_system2, [x1(t), x2(t)], ics=ics)
+
+
+# Function which returns the correct solution in both cases
+
+def ivp_solution2(t, x1_init, x2_init, u1, u2, u3, A):
+    u1mu3 = u1 - u3
+    if u1mu3 == 0:
+        return [
+            x1_init,
+            u2 - (u2 - x2_init) * np.exp(-t * u1 / (A * x1_init))
+        ]
+    Ax1initptu1mu3 = A * x1_init + t * u1mu3
+    return [
+        Ax1initptu1mu3 / A,
+        u2 * Ax1initptu1mu3
+        + (
+            A ** (u3 / u1mu3) * x1_init ** (u3 / u1mu3) * x2_init 
+            - u2 * np.exp(u1 * np.log(A * x1_init) / u1mu3)
+        ) * np.exp(-u3 * np.log(Ax1initptu1mu3) / u1mu3)
+    ]
