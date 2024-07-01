@@ -2,7 +2,11 @@ import casadi as cas
 from casadi import DM, MX, Function, Opti
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
+
+plot_dir = 'plots'
+os.makedirs(plot_dir, exist_ok=True)
 
 # ODE right-hand side
 #
@@ -19,16 +23,20 @@ u = MX.sym('u', nu)  # control force [N]
 rhs = cas.vertcat(x[1], u / m + g)
 f = Function('f', [x, u], [rhs], ['x', 'u'], ['rhs'])
 
-# Discrete-time approximation (Euler method)
+# Discrete-time approximation (explicit Euler method)
 dt = DM(0.1)
 xkp1 = x + dt * f(x, u)
 F = Function('F', [x, u], [xkp1], ['x', 'u'], ['xkp1'])
 print(F)
 
+# Simulation time
+N = 25
+t = np.arange(N+1) * float(dt)
+T = t[-1]
+
 opti = Opti()
 
 # Decision variables for control
-N = 25
 U = opti.variable(nu, N) # force [N]
 
 # Trajectory simulation (single shooting)
@@ -46,20 +54,24 @@ print(simulate)
 
 x0 = DM([15, 0])
 X = simulate(x0, U)
-opti.subject_to(X[0, :-1] > 0.0)
+
+# Boundary constraints
 opti.subject_to(X[0, -1] == 0.0)
 opti.subject_to(X[1, -1] > -0.01)
+
+# Path constraint
+opti.subject_to(X[0, :-1] > 0.0)
 opti.subject_to(opti.bounded(0.0, U, 20.0))
 opti.minimize(cas.sumsqr(U))
 
 opti.solver('ipopt')
 sol = opti.solve()
 
+# Add initial and final values
 xsol = np.concatenate([x0, sol.value(X)], axis=1).T
 usol = np.concatenate([sol.value(U), [np.nan]])
 
 fig, axes = plt.subplots(3, 1, sharex=True)
-t = np.arange(N+1) * float(dt)
 
 ax = axes[0]
 ax.plot(t, xsol[:, 0], '.-')
@@ -81,4 +93,6 @@ ax.set_ylabel('$u$')
 ax.set_title('Thrust')
 
 plt.tight_layout()
+filename = "lander_ioplot.pdf"
+plt.savefig(os.path.join(plot_dir, filename))
 plt.show()
