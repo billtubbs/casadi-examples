@@ -5,6 +5,7 @@ import rockit
 from rockit import SingleShooting, MultipleShooting
 
 
+data_dir = 'data'
 plot_dir = 'plots'
 os.makedirs(plot_dir, exist_ok=True)
 
@@ -47,7 +48,7 @@ ocp.add_objective(ocp.integral(u**2))
 
 ocp.solver('ipopt')
 
-method = SingleShooting(N=N, intg='expl_euler')
+method = SingleShooting(N=N, intg='rk')
 ocp.method(method)
 
 sol = ocp.solve()
@@ -82,4 +83,14 @@ ax.set_title('Thrust')
 plt.tight_layout()
 filename = "lander_rockit_ioplot.pdf"
 plt.savefig(os.path.join(plot_dir, filename))
+print("\nClose plot window to end script.")
 plt.show()
+
+# Test results match data on file
+u_sol[-1] = np.nan  # needed for comparison with CasADi solution in lander_ss.py
+assert np.allclose(
+    np.stack([x1_sol, x2_sol, u_sol]).T,
+    np.load(os.path.join(data_dir, "lander_ss_rk.npy")),
+    equal_nan=True,
+    atol=1e-7  # TODO: Should it be less?
+)

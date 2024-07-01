@@ -5,6 +5,7 @@ import numpy as np
 import os
 
 
+data_dir = 'data'
 plot_dir = 'plots'
 os.makedirs(plot_dir, exist_ok=True)
 
@@ -23,9 +24,16 @@ u = MX.sym('u', nu)  # control force [N]
 rhs = cas.vertcat(x[1], u / m + g)
 f = Function('f', [x, u], [rhs], ['x', 'u'], ['rhs'])
 
-# Discrete-time approximation (explicit Euler method)
-dt = DM(0.1)
-xkp1 = x + dt * f(x, u)
+# Discrete-time approximation (Runge-Kutta method)
+intg_options = {'number_of_finite_elements': 1}
+solver = 'rk'
+dae = {'x': x, 'p': u, 'ode': rhs}
+t0 = 0
+dt = 0.1
+tf = dt / intg_options['number_of_finite_elements']
+intg = cas.integrator('intg', solver, dae, t0, tf, intg_options)
+res = intg(x0=x, p=u)
+xkp1 = res['xf']
 F = Function('F', [x, u], [xkp1], ['x', 'u'], ['xkp1'])
 print(F)
 
@@ -95,4 +103,13 @@ ax.set_title('Thrust')
 plt.tight_layout()
 filename = "lander_ioplot.pdf"
 plt.savefig(os.path.join(plot_dir, filename))
+print("\nClose plot window to end script.")
 plt.show()
+
+# Test results match data on file
+assert np.allclose(
+    np.hstack([xsol, usol.reshape(-1, 1)]),
+    np.load(os.path.join(data_dir, "lander_ss_rk.npy")),
+    equal_nan=True,
+    atol=1e-15
+)
