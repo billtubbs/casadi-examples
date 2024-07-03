@@ -2,7 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import rockit
-from rockit import SingleShooting
+from rockit import MultipleShooting
 from plot_utils import make_uxplot
 
 
@@ -49,7 +49,7 @@ ocp.add_objective(ocp.integral(u**2))
 
 ocp.solver('ipopt')
 
-method = SingleShooting(N=N, intg='expl_euler')
+method = MultipleShooting(N=N, intg='rk')
 ocp.method(method)
 
 sol = ocp.solve()
@@ -60,7 +60,7 @@ assert np.array_equal(t, t1)
 t1, u_sol = sol.sample(u, grid='control')
 assert np.array_equal(t, t1)
 
-filename = "lander_ss_rockit_ioplot.pdf"
+filename = "lander_ms_rk_rockit_ioplot.pdf"
 x_titles = ['Position', 'Velocity']
 u_titles = ['Thrust']
 fig, axes = make_uxplot(
@@ -80,7 +80,7 @@ plt.show()
 u_sol[-1] = np.nan  # needed for comparison with CasADi solution in lander_ss.py
 assert np.allclose(
     np.stack([x1_sol, x2_sol, u_sol]).T,
-    np.load(os.path.join(data_dir, "lander_ss.npy")),
+    np.load(os.path.join(data_dir, "lander_ms_rk.npy")),
     equal_nan=True,
     atol=1e-8  # TODO: Should it be closer?
 )

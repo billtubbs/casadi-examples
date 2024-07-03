@@ -1,8 +1,9 @@
 import os
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
 import rockit
-from rockit import SingleShooting, MultipleShooting
+from rockit import SingleShooting
+from plot_utils import make_uxplot
 
 
 data_dir = 'data'
@@ -59,30 +60,19 @@ assert np.array_equal(t, t1)
 t1, u_sol = sol.sample(u, grid='control')
 assert np.array_equal(t, t1)
 
-fig, axes = plt.subplots(3, 1, sharex=True)
+filename = "lander_ss_rk_rockit_ioplot.pdf"
+x_titles = ['Position', 'Velocity']
+u_titles = ['Thrust']
+fig, axes = make_uxplot(
+    t, 
+    u_sol.reshape(-1, nu), 
+    np.stack([x1_sol, x2_sol]).T, 
+    x_titles=x_titles, 
+    u_titles=u_titles, 
+    filename=filename, 
+    plot_dir=plot_dir
+)
 
-ax = axes[0]
-ax.plot(t, x1_sol, '.-')
-ax.grid()
-ax.set_ylabel('$x_1$')
-ax.set_title('Position')
-
-ax = axes[1]
-ax.plot(t, x2_sol, '.-')
-ax.grid()
-ax.set_ylabel('$x_2$')
-ax.set_title('Velocity')
-
-ax = axes[2]
-ax.plot(t, u_sol, '.-')
-ax.grid()
-ax.set_xlabel('Time')
-ax.set_ylabel('$u$')
-ax.set_title('Thrust')
-
-plt.tight_layout()
-filename = "lander_rockit_ioplot.pdf"
-plt.savefig(os.path.join(plot_dir, filename))
 print("\nClose plot window to end script.")
 plt.show()
 
@@ -92,5 +82,5 @@ assert np.allclose(
     np.stack([x1_sol, x2_sol, u_sol]).T,
     np.load(os.path.join(data_dir, "lander_ss_rk.npy")),
     equal_nan=True,
-    atol=1e-7  # TODO: Should it be less?
+    atol=1e-8  # TODO: Should it be closer?
 )

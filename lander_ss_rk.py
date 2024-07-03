@@ -1,8 +1,9 @@
+import os
+import numpy as np
+import matplotlib.pyplot as plt
 import casadi as cas
 from casadi import DM, MX, Function, Opti
-import matplotlib.pyplot as plt
-import numpy as np
-import os
+from plot_utils import make_uxplot
 
 
 data_dir = 'data'
@@ -44,8 +45,8 @@ T = t[-1]
 
 opti = Opti()
 
-# Decision variables for control
-U = opti.variable(nu, N) # force [N]
+# Decision variables for control action
+U = opti.variable(nu, N)  # force [N]
 
 # Trajectory simulation (single shooting)
 x0 = MX.sym('x0', 2)
@@ -79,30 +80,19 @@ sol = opti.solve()
 xsol = np.concatenate([x0, sol.value(X)], axis=1).T
 usol = np.concatenate([sol.value(U), [np.nan]])
 
-fig, axes = plt.subplots(3, 1, sharex=True)
+filename = "lander_ss_rk_ioplot.pdf"
+x_titles = ['Position', 'Velocity']
+u_titles = ['Thrust']
+fig, axes = make_uxplot(
+    t, 
+    usol.reshape(-1, nu), 
+    xsol, 
+    x_titles=x_titles, 
+    u_titles=u_titles, 
+    filename=filename, 
+    plot_dir=plot_dir
+)
 
-ax = axes[0]
-ax.plot(t, xsol[:, 0], '.-')
-ax.grid()
-ax.set_ylabel('$x_1$')
-ax.set_title('Position')
-
-ax = axes[1]
-ax.plot(t, xsol[:, 1], '.-')
-ax.grid()
-ax.set_ylabel('$x_2$')
-ax.set_title('Velocity')
-
-ax = axes[2]
-ax.plot(t, usol, '.-')
-ax.grid()
-ax.set_xlabel('Time')
-ax.set_ylabel('$u$')
-ax.set_title('Thrust')
-
-plt.tight_layout()
-filename = "lander_ioplot.pdf"
-plt.savefig(os.path.join(plot_dir, filename))
 print("\nClose plot window to end script.")
 plt.show()
 

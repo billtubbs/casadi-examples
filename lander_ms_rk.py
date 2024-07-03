@@ -25,9 +25,16 @@ u = MX.sym('u', nu)  # control force [N]
 rhs = cas.vertcat(x[1], u / m + g)
 f = Function('f', [x, u], [rhs], ['x', 'u'], ['rhs'])
 
-# Discrete-time approximation (explicit Euler method)
-dt = DM(0.1)
-xkp1 = x + dt * f(x, u)
+# Discrete-time approximation (Runge-Kutta method)
+intg_options = {'number_of_finite_elements': 1}
+solver = 'rk'
+dae = {'x': x, 'p': u, 'ode': rhs}
+t0 = 0
+dt = 0.1
+tf = dt / intg_options['number_of_finite_elements']
+intg = cas.integrator('intg', solver, dae, t0, tf, intg_options)
+res = intg(x0=x, p=u)
+xkp1 = res['xf']
 F = Function('F', [x, u], [xkp1], ['x', 'u'], ['xkp1'])
 print(F)
 
@@ -41,39 +48,39 @@ opti = Opti()
 # Decision variables for control action
 U = opti.variable(nu, N)  # force [N]
 
-# Trajectory simulation (single shooting)
-x0 = MX.sym('x0', 2)
-X = []
-xk = x0
+# Decision variables for states
+X = opti.variable(nx, N+1)
+
+# Dynamic model constraints (multiple shooting)
 for k in range(N):
     u = U[:, k]
-    xk = F(xk, u)
-    X.append(xk)
-X = cas.hcat(X)
+    opti.subject_to(X[:, k+1] == F(X[:, k], U[k]))
 
-simulate = Function('simulate', [x0, U], [X], ['x0', 'U'], ['X'])
-print(simulate)
+# Define objective function
+f = cas.sumsqr(U)
+opti.minimize(f)
 
-x0 = DM([15, 0])
-X = simulate(x0, U)
+# Boundary constraints - initial condition
+x0 = DM([15.0, 0.0])
+opti.subject_to(X[0, 0] == x0[0])
+opti.subject_to(X[1, 0] == x0[1])
 
-# Boundary constraints
+# Boundary constraints - terminal condition
 opti.subject_to(X[0, -1] == 0.0)
 opti.subject_to(X[1, -1] > -0.01)
 
 # Path constraint
 opti.subject_to(X[0, :-1] > 0.0)
 opti.subject_to(opti.bounded(0.0, U, 20.0))
-opti.minimize(cas.sumsqr(U))
 
 opti.solver('ipopt')
 sol = opti.solve()
 
-# Add initial and final values
-xsol = np.concatenate([x0, sol.value(X)], axis=1).T
+xsol = np.array(sol.value(X)).T
+# Add final value
 usol = np.concatenate([sol.value(U), [np.nan]])
 
-filename = "lander_ss_ioplot.pdf"
+filename = "lander_ioplot.pdf"
 x_titles = ['Position', 'Velocity']
 u_titles = ['Thrust']
 fig, axes = make_uxplot(
@@ -92,7 +99,7 @@ plt.show()
 # Test results match data on file
 assert np.allclose(
     np.hstack([xsol, usol.reshape(-1, 1)]),
-    np.load(os.path.join(data_dir, "lander_ss.npy")),
+    np.load(os.path.join(data_dir, "lander_ms_rk.npy")),
     equal_nan=True,
     atol=1e-15
 )
