@@ -54,7 +54,7 @@ opti = casadi.Opti()
 
 # Decision variables for states
 X = opti.variable(nx,N+1)
-# Decision variables for control vector
+# Decision variables for control actions
 U =  opti.variable(2,N) # force [N]
 
 # Gap-closing shooting constraints
