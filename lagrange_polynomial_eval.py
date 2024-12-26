@@ -8,12 +8,12 @@ def LagrangePolynomialEval(X, Y, x):
     if isinstance(Y, list):
         Y = np.array(Y)
     if len(Y.shape) > 1:
-      assert 1 in X.shape
+        assert 1 in X.shape
     N = np.prod(X.shape)
     if len(Y.shape) == 1:
-      Y = Y.reshape((1, N))
+        Y = Y.reshape((1, N))
     else:
-      assert Y.shape[1] == N
+        assert(Y.shape[1] == N)
 
     res = 0
 
@@ -27,30 +27,36 @@ def LagrangePolynomialEval(X, Y, x):
     return res
 
 
-def lagrange_polynomial_eval_numpy(X, Y, x):
-    """Interpolates exactly through data. This version only
-    works with numerical arguments (e.g. lists or Numpy arrays).
+def lagrange_polynomial_eval_numeric(X, Y, x):
+    """Interpolates exactly through data points. This function only works
+    with numerical arguments such as lists or Numpy arrays.
+
+    Arguments
+    ---------
+        X : (N, ) array
+            x-axis data points
+        Y : (N, ) or (N, ny) array
+            y-axis data points (possibly more than one dimension)
+        x : (nx) array
+            points on x axis at which to evaluate polynomial.
+
     """
     X = np.array(X)
     Y = np.array(Y)
+    x = np.array(x)
 
-    if Y.ndim > 1:
-        assert 1 in X.shape
+    assert X.ndim == 1
     N = X.size
     if Y.ndim == 1:
-        Y = Y.reshape((1, N))
-    else:
-        assert Y.shape[1] == N
-
-    N = X.size
-    nx = x.shape[0]
+        Y = Y.reshape((N, 1))
+    assert x.ndim == 1
+    nx = x.size
 
     ii, jj = np.indices((N, N))
     mask = ii != jj
     numerator = np.where(np.expand_dims(mask, 2), x - np.expand_dims(X[ii], 2), np.ones((N, N, nx)))
-    denomenator = np.expand_dims(np.where(mask, X[jj] - X[ii], np.ones((N, N))), 2)
-    inner_res = numerator / denomenator
-    p = np.prod(inner_res, axis=0)
-    res = np.sum(p * Y.reshape(-1, 1), axis=0)
+    denominator = np.expand_dims(np.where(mask, X[jj] - X[ii], np.ones((N, N))), 2)
+    p = np.prod(numerator / denominator, axis=0)
+    y = np.matmul(p.T, Y)
 
-    return res
+    return y
