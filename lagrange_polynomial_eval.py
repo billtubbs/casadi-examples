@@ -27,8 +27,10 @@ def LagrangePolynomialEval(X, Y, x):
     return res
 
 
-def lagrange_polynomial_eval(X, Y, x):
-    """Interpolates exactly through data"""
+def lagrange_polynomial_eval_numpy(X, Y, x):
+    """Interpolates exactly through data. This version only
+    works with numerical arguments (e.g. lists or Numpy arrays).
+    """
     X = np.array(X)
     Y = np.array(Y)
 
@@ -40,15 +42,15 @@ def lagrange_polynomial_eval(X, Y, x):
     else:
         assert Y.shape[1] == N
 
-    res = 0
-    for j in range(N):
-        p = 1
-        for i in range(N):
-            if i != j:
-                p = p * (x - X[i]) / (X[j] - X[i])
+    N = X.size
+    nx = x.shape[0]
 
-        res = res + p * Y[:, j]
+    ii, jj = np.indices((N, N))
+    mask = ii != jj
+    numerator = np.where(np.expand_dims(mask, 2), x - np.expand_dims(X[ii], 2), np.ones((N, N, nx)))
+    denomenator = np.expand_dims(np.where(mask, X[jj] - X[ii], np.ones((N, N))), 2)
+    inner_res = numerator / denomenator
+    p = np.prod(inner_res, axis=0)
+    res = np.sum(p * Y.reshape(-1, 1), axis=0)
 
     return res
-
-
