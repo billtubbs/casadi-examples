@@ -52,10 +52,11 @@ f = Function('f', [x, u], [dx])
 # -----------------------------------
 
 # Reference Runge-Kutta implementation
+dae = {'x': x, 'p': u, 'ode': f(x, u)}
 t0 = 0.0
 tf = dt
 opts = {"number_of_finite_elements": 1}
-intg = cas.integrator('intg', 'rk', {'x': x, 'p':u, 'ode': f(x, u)}, t0, tf, opts)
+intg = cas.integrator('intg', 'rk', dae, t0, tf, opts)
 
 ##
 # -----------------------------------------------
@@ -85,7 +86,7 @@ opti.set_initial(U, 1)
 opti.subject_to(X[:, 0] == x_steady)
 # Objective: regularization of controls
 
-xbar = opti.variable();
+xbar = opti.variable()
 opti.minimize(1e-6 * cas.sumsqr(U) + cas.sumsqr(X[:, -1] - xbar))
 
 # solve optimization problem

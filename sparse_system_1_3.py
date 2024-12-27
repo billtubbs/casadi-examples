@@ -1,7 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from casadi import MX, Function
+from casadi import DM, MX, Function
 import casadi as cas
+from lagrange_polynomial_eval import LagrangePolynomialEval
+
 
 T = 1.0  # control horizon [s]
 N = 40  # Number of control intervals
@@ -48,15 +50,46 @@ x_steady = (-cas.solve(A, B @ cas.vertcat(1, 1))) ** 2
 f = Function('f', [x, u], [dx])
 
 # -----------------------------------
-#    Discrete system x_next = F(x, u)
+#    Collocation scheme
 # -----------------------------------
 
-# Collocation integrator
-dae = {'x': x, 'p': u, 'ode': f(x, u)}
-t0 = 0.0
-tf = dt
-opts = {"number_of_finite_elements": 1}
-intg = cas.integrator('intg', 'collocation', dae, t0, tf, opts)
+d = 3  # degree
+scheme = 'radau'
+tau = DM(cas.collocation_points(d, scheme)).T
+
+
+def make_polynomial_functions(nx, d):
+    t0 = MX.sym("t0")
+    t_coll = MX.sym("t_coll", 1, d)
+    T = cas.horzcat(t0, t_coll)
+    X0 = MX.sym("X0", nx)
+    Xc = MX.sym("Xc", nx, d)
+    X = cas.horzcat(X0, Xc)
+
+    t = MX.sym('t')
+    Pi_expr = LagrangePolynomialEval(T, X, t)
+    Pi = Function(
+        'Pi', 
+        [t0, t_coll, t, X0, Xc], 
+        [Pi_expr], 
+        ['t0', 't_coll', 't', 'X0', 'Xc'], 
+        ['Pi']
+    )
+
+    dPidt_expr = cas.jacobian(Pi_expr, t)
+    dot_Pi = Function(
+        'dot_Pi', 
+        [t0, t_coll, t, X0, Xc], 
+        [dPidt_expr], 
+        ['t0', 't_coll', 't', 'X0', 'Xc'], 
+        ['dPidt']
+    )
+
+    return Pi, dot_Pi
+
+
+# Define polynomial functions
+Pi, dot_Pi = make_polynomial_functions(nx, d)
 
 ##
 # -----------------------------------------------
@@ -69,17 +102,27 @@ opti = cas.Opti()
 X = opti.variable(nx, N + 1)
 # Decision variables for control vector
 U = opti.variable(nu, N)
+# Decision variables for collocation scheme
+Xc = opti.variable(nx, d * (N + 1))
 
-# Gap-closing shooting constraints
+# Gap-closing shooting constraints with collocation
 for k in range(N):
-   res = intg(x0=X[:, k], p=U[:, k])
-   opti.subject_to(X[:, k + 1] == res["xf"])
+    t0 = k * dt
+    t_coll = t0 + dt * tau
+    tf = (k + 1) * dt
+    Xck = Xc[:, k*d:(k+1)*d]
+    Uck = cas.repmat(U[:, k], 1, d)
+    xf = Pi(t0, t_coll, tf, X[:, k], Xck)
+    dxdt = dot_Pi(t0, t_coll, t_coll, X[:, k], Xck)
+    opti.subject_to(dxdt == f(Xck, Uck))
+    opti.subject_to(X[:, k + 1] == xf)
 
 # Path constraints
 opti.subject_to(opti.bounded(0.01, cas.vec(X), 0.1))
 
 # Initial guesses
 opti.set_initial(X, cas.repmat(x_steady, 1, N + 1))
+opti.set_initial(Xc, cas.repmat(x_steady, 1, d * (N + 1)))
 opti.set_initial(U, 1)
 
 # Initial and terminal constraints
