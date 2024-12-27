@@ -54,9 +54,9 @@ def lagrange_polynomial_eval_numeric(X, Y, x):
 
     ii, jj = np.indices((N, N))
     mask = ii != jj
-    numerator = np.where(np.expand_dims(mask, 2), x - np.expand_dims(X[ii], 2), np.ones((N, N, nx)))
-    denominator = np.expand_dims(np.where(mask, X[jj] - X[ii], np.ones((N, N))), 2)
-    p = np.prod(numerator / denominator, axis=0)
+    num = np.where(np.expand_dims(mask, 2), x - np.expand_dims(X[ii], 2), 1.)
+    den = np.expand_dims(np.where(mask, X[jj] - X[ii], 1.), 2)
+    p = np.prod(num / den, axis=0)
     y = np.matmul(p.T, Y)
 
     return y
