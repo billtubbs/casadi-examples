@@ -55,41 +55,10 @@ f = Function('f', [x, u], [dx])
 
 d = 3  # degree
 scheme = 'radau'
-tau = DM(cas.collocation_points(d, scheme)).T
+tau = cas.collocation_points(d, scheme)
 
-
-def make_polynomial_functions(nx, d):
-    t0 = MX.sym("t0")
-    t_coll = MX.sym("t_coll", 1, d)
-    T = cas.horzcat(t0, t_coll)
-    X0 = MX.sym("X0", nx)
-    Xc = MX.sym("Xc", nx, d)
-    X = cas.horzcat(X0, Xc)
-
-    t = MX.sym('t')
-    Pi_expr = LagrangePolynomialEval(T, X, t)
-    Pi = Function(
-        'Pi', 
-        [t0, t_coll, t, X0, Xc], 
-        [Pi_expr], 
-        ['t0', 't_coll', 't', 'X0', 'Xc'], 
-        ['Pi']
-    )
-
-    dPidt_expr = cas.jacobian(Pi_expr, t)
-    dot_Pi = Function(
-        'dot_Pi', 
-        [t0, t_coll, t, X0, Xc], 
-        [dPidt_expr], 
-        ['t0', 't_coll', 't', 'X0', 'Xc'], 
-        ['dPidt']
-    )
-
-    return Pi, dot_Pi
-
-
-# Define polynomial functions
-Pi, dot_Pi = make_polynomial_functions(nx, d)
+# Linear maps to compute Pi and dot_Pi
+C, D, B = cas.collocation_coeff(tau)
 
 ##
 # -----------------------------------------------
@@ -100,30 +69,31 @@ opti = cas.Opti()
 
 # Decision variables for states
 X = opti.variable(nx, N + 1)
+
 # Decision variables for control vector
 U = opti.variable(nu, N)
-# Decision variables for collocation scheme
-Xc = opti.variable(nx, d * (N + 1))
 
 # Gap-closing shooting constraints with collocation
 for k in range(N):
-    t0 = k * dt
-    t_coll = t0 + dt * tau
-    tf = (k + 1) * dt
-    Xck = Xc[:, k*d:(k+1)*d]
-    dxdt = dot_Pi(t0, t_coll, t_coll, X[:, k], Xck)
-    opti.subject_to(dxdt == f(Xck, U[:, k]))
+
+    # Decision variables for collocation scheme
+    Xc = opti.variable(nx, d)
+
+    Z = cas.horzcat(X[:, k], Xc)
+    dot_Pi = (Z @ C) / dt
+    opti.subject_to(dot_Pi == f(Xc, U[:, k]))
 
     # Continuity constraint
-    xf = Pi(t0, t_coll, tf, X[:, k], Xck)
-    opti.subject_to(X[:, k + 1] == xf)
+    Pi_f = Z @ D
+    opti.subject_to(Pi_f == X[:, k + 1])
+    opti.set_initial(Xc, cas.repmat(x_steady, 1, d))
 
 # Path constraints
 opti.subject_to(opti.bounded(0.01, cas.vec(X), 0.1))
 
 # Initial guesses
 opti.set_initial(X, cas.repmat(x_steady, 1, N + 1))
-opti.set_initial(Xc, cas.repmat(x_steady, 1, d * (N + 1)))
+
 opti.set_initial(U, 1)
 
 # Initial and terminal constraints
