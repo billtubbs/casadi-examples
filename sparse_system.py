@@ -104,3 +104,5 @@ Xsol = sol.value(X)
 plt.plot(Xsol.T, 'o-')
 
 plt.show()
+
+print(sol.value(X[:, -1]))
