@@ -290,12 +290,17 @@ def ocp_lifted_rk(f, nx, nu, N, dt, x_steady, solver='ipopt'):
 
     # Gap-closing shooting constraints
     for k in range(N):
-        K = opti.variable(nx, 4)
-        opti.subject_to(K[:, 0] == f(X[:, k], U[:, k]))
-        opti.subject_to(K[:, 1] == f(X[:, k] + dt/2 * K[:, 0], U[:, k]))
-        opti.subject_to(K[:, 2] == f(X[:, k] + dt/2 * K[:, 1], U[:, k]))
-        opti.subject_to(K[:, 3] == f(X[:, k] + dt * K[:, 2], U[:, k]))
-        xf = X[:, k] + dt / 6 * (K[:, 0] + 2 * K[:, 1] + 2 * K[:, 2] + K[:, 3])
+        x = X[:, k]
+        u = U[:, k]
+        k1 = opti.variable(nx)
+        k2 = opti.variable(nx)
+        k3 = opti.variable(nx)
+        k4 = opti.variable(nx)
+        opti.subject_to(k1 == f(x, u))
+        opti.subject_to(k2 == f(x + dt/2 * k1, u))
+        opti.subject_to(k3 == f(x + dt/2 * k2, u))
+        opti.subject_to(k4 == f(x + dt * k3, u))
+        xf = x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
         opti.subject_to(X[:, k + 1] == xf)
 
     # Path constraints
