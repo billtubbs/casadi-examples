@@ -62,8 +62,24 @@ def cas_integrator(x, u, f, dt, solver='rk', number_of_finite_elements=1):
     return cas.integrator('intg', solver, dae, t0, tf, opts)
 
 
+def explicit_integrator_rk4(x, u, f, dt):
+    """Construct an integrator using an explicit Runge-Kutta scheme
+    for the discrete system transition function:
+
+        x_next = F(x, u)
+
+    """
+    k1 = f(x, u)
+    k2 = f(x + dt/2 * k1, u)
+    k3 = f(x + dt/2 * k2, u)
+    k4 = f(x + dt * k3, u)
+    xf = x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+
+    return Function('intg', [x, u], [xf], ['x0', 'p'], ['xf'])
+
+
 def ocp_multiple_shooting(nx, nu, N, intg, x_steady, solver='ipopt'):
-    """Set up Optimal control problem, multiple shooting
+    """Set up Optimal control problem with multiple shooting.
     """
 
     opti = cas.Opti()
@@ -157,7 +173,7 @@ def make_polynomial_eval_functions_alternate(dt, nx, d, t0=0.0, scheme='legendre
 def ocp_direct_collocation(
         f, nx, nu, N, dt, d, tau, Pi, dot_Pi, x_steady, solver='ipopt'
     ):
-    """Set up Optimal control problem, multiple shooting
+    """Set up Optimal control problem with direct collocation.
     """
 
     opti = cas.Opti()
@@ -208,7 +224,8 @@ def ocp_direct_collocation(
 def ocp_direct_collocation_coeffs(
         f, nx, nu, N, dt, d, tau, x_steady, solver='ipopt'
     ):
-    """Set up Optimal control problem, multiple shooting
+    """Set up Optimal control problem with direct collocation using
+    linear coefficient maps.
     """
 
     # Linear maps to compute Pi and dot_Pi
@@ -257,6 +274,48 @@ def ocp_direct_collocation_coeffs(
 
     return opti, X, U
 
+
+def ocp_lifted_rk(f, nx, nu, N, dt, x_steady, solver='ipopt'):
+    """Set up Optimal control problem with lifted Runge-Kutta
+    integration scheme.
+    """
+
+    opti = cas.Opti()
+
+    # Decision variables for states
+    X = opti.variable(nx, N + 1)
+
+    # Decision variables for control vector
+    U = opti.variable(nu, N)
+
+    # Gap-closing shooting constraints
+    for k in range(N):
+        K = opti.variable(nx, 4)
+        opti.subject_to(K[:, 0] == f(X[:, k], U[:, k]))
+        opti.subject_to(K[:, 1] == f(X[:, k] + dt/2 * K[:, 0], U[:, k]))
+        opti.subject_to(K[:, 2] == f(X[:, k] + dt/2 * K[:, 1], U[:, k]))
+        opti.subject_to(K[:, 3] == f(X[:, k] + dt * K[:, 2], U[:, k]))
+        xf = X[:, k] + dt / 6 * (K[:, 0] + 2 * K[:, 1] + 2 * K[:, 2] + K[:, 3])
+        opti.subject_to(X[:, k + 1] == xf)
+
+    # Path constraints
+    opti.subject_to(opti.bounded(0.01, cas.vec(X), 0.1))
+
+    # Initial guesses
+    opti.set_initial(X, cas.repmat(x_steady, 1, N + 1))
+    opti.set_initial(U, 1)
+
+    # Initial and terminal constraints
+    opti.subject_to(X[:, 0] == x_steady)
+    # Objective: regularization of controls
+
+    xbar = opti.variable()
+    opti.minimize(1e-6 * cas.sumsqr(U) + cas.sumsqr(X[:, -1] - xbar))
+
+    # solve optimization problem
+    opti.solver(solver)
+
+    return opti, X, U
 
 def process_timing(sol):
     stats = sol.stats()
