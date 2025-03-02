@@ -83,7 +83,7 @@ sol = opti.solve()
 
 ##
 # -----------------------------------------------
-#    Post-procescas.sing: plotting
+#    Post-processing: plotting
 # -----------------------------------------------
 
 xsol = sol.value(X)
