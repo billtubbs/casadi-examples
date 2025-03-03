@@ -1,7 +1,7 @@
 import numpy as np
 import casadi as cas
 import matplotlib.pyplot as plt
-from casadi import MX
+from casadi import MX, Opti
 
 # Physical constants
 
@@ -42,7 +42,7 @@ intg = cas.integrator('intg', 'cvodes', {'x': x, 'p': u, 'ode': rhs}, opts)
 # -----------------------------------------------
 x0 = cas.vertcat(0.5,0)
 
-opti = cas.Opti()
+opti = Opti()
 
 # Decision variable for states
 x = opti.variable(nx)
